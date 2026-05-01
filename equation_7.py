@@ -1,0 +1,187 @@
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+
+#Set time periods
+T           = 50
+T_stabilize = 25
+
+years       = np.zeros(T)
+years[0]    = 2026
+for t in range(T-1):
+    years[t+1] = years[t] + 1
+
+###Budget###
+#Set initial debt, intial deficit, interest rate, and growth rate of effective labor
+d_0           = 0.0  
+pd_exogenous  = 0.06
+r             = 0.02
+g             = 0.01
+
+#Initialize arrays for debt and primary deficit
+d                 = np.zeros(T)
+primary_deficit   = np.zeros(T)
+d[0]              = d_0
+
+#Speed at which debt stabilizes
+v = 0.5
+
+for t in range(T):
+    if t < T_stabilize:
+        primary_deficit[t] = pd_exogenous
+    else:
+        target             = -d[t]*(r-g)
+        primary_deficit[t] = primary_deficit[t-1] + v*(target-primary_deficit[t-1])
+
+    if t < T - 1:
+        d[t+1] = (d[t]*(1+r) + primary_deficit[t]) / (1+g)
+
+###Macro###
+#Initialize TFP, capital share, depreciation rate, interest rate, and capital stock
+A      = 1.0
+alpha  = 0.33
+delta  = 0.06
+s      = r #Risk-adjusted return to capital
+k      = 3.5
+
+#Introduce budget deficit
+theta = 0.02
+
+#Introduce MPC
+MPC = [0.25, 0.5, 0.75]
+
+c_results = {}
+a_results = {}
+
+for i in MPC:
+
+    #Allocate arrays
+    c       = np.zeros(T) #consumption
+    a       = np.zeros(T) #assets
+
+    #Initialize assets
+    a[0] = 3.5
+
+    # Baseline steady-state values 
+    f    = A * k**alpha
+    w    = (1-alpha) * f
+    c_b  = w + a[0]*(s - g)
+
+    for t in range(T):
+
+        #Consumption and asset accumulation
+        c[t] = c_b + i*primary_deficit[t]
+
+        if t < T - 1:
+            a[t+1] = (a[t]*(1+s) + w - c[t]) / (1+g)
+
+    c_results[i] = c.copy()
+    a_results[i] = a.copy()   
+
+
+#Create datasets and print results
+
+df_constant    = pd.DataFrame({
+    "year": years,
+    "primary deficit": primary_deficit,
+    "debt": d
+})
+
+df_consumption = (pd.DataFrame.from_dict(c_results)
+                    .reset_index()
+                    .melt(id_vars='index', var_name='MPC', value_name='consumption'))
+
+df_assets      = (pd.DataFrame.from_dict(a_results)
+                    .reset_index()
+                    .melt(id_vars='index', var_name='MPC', value_name='assets'))
+
+df_variable    = df_consumption.merge(df_assets, on=['index', 'MPC'])
+
+df_full = df_constant.reset_index() \
+                     .merge(df_variable, how = "right", on = "index") \
+                     .sort_values(by=["MPC", "index"])
+
+# print(df_full.head(50))
+# print(df_full.tail(50))
+
+
+#Plot output
+fig, ax = plt.subplots()
+
+colors = {0.25: '#053769', 0.5: '#ff5e1a', 0.75: "#a4c7f2"}
+
+for mpc, group in df_full.groupby('MPC'):
+    ax.plot(group['year'], group['assets'], label=f'Assets (MPC={mpc})', color = colors[mpc])
+
+debt = df_full[df_full['MPC'] == MPC[0]]
+ax.plot(debt['year'], debt['debt'], label='Debt', color='black')
+
+ax.axvline(x = 2051, ymin = 0, ymax = 3.5, linestyle = 'dashed', color = 'black')
+
+ax.set_title('Assets and Debt, Small Open Economy')
+ax.set_xlabel('Year')
+ax.set_ylabel('Trillions of Dollars')
+ax.legend()
+
+###Different MPCs###
+#Introduce MPC
+MPC_accumulation  = 0.9
+MPC_stabilization = 0.1
+
+#Allocate arrays
+c       = np.zeros(T) #consumption
+a       = np.zeros(T) #assets
+
+#Initialize assets
+a[0] = 3.5
+
+# Baseline steady-state values 
+f    = A * k**alpha
+w    = (1-alpha) * f
+c_b  = w + a[0]*(s - g)
+
+for t in range(T):
+
+    #Consumption and asset accumulation
+    if t < T_stabilize:
+        c[t] = c_b + MPC_accumulation*primary_deficit[t]
+    else:
+        c[t] = c_b + MPC_stabilization*primary_deficit[t]
+
+    if t < T - 1:
+        a[t+1] = (a[t]*(1+s) + w - c[t]) / (1+g)
+
+
+
+
+#Create datasets and print results
+
+df_corollary  = pd.DataFrame({
+    "year": years,
+    "consumption": c,
+    "assets": a,
+    "primary deficit": primary_deficit,
+    "debt": d
+})
+
+# print(df_corollary.head(5))
+# print(df_corollary.tail(5))
+
+
+#Plot output
+fig, ax1 = plt.subplots()
+
+ax1.plot(years, a, label = 'Assets', color = '#053769')
+ax1.plot(years, d, label = 'Debt', color = '#ff5e1a')
+
+ax1.axvline(x = 2051, ymin = 0, ymax = 3.5, linestyle = 'dashed', color = 'black')
+
+plt.suptitle('        Assets and Debt, Small Open Economy', ha = 'center')
+ax1.set_title('Non-Constant MPC', fontsize = 11, ha = 'center')
+ax1.set_xlabel('Year')
+ax1.set_ylabel('Trillions of Dollars')
+ax1.legend()
+
+plt.tight_layout()
+plt.show()
