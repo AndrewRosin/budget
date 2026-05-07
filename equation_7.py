@@ -4,17 +4,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 #Set time periods
-T           = 50
+T           = 150
 T_stabilize = 25
 
-years       = np.zeros(T)
-years[0]    = 2026
-for t in range(T-1):
-    years[t+1] = years[t] + 1
+years = np.arange(2026, 2026 + T, dtype=float)
 
 ###Budget###
 #Set initial debt, intial deficit, interest rate, and growth rate of effective labor
-d_0           = 0.0  
+d_0           = 0
 pd_exogenous  = 0.06
 r             = 0.02
 g             = 0.01
@@ -25,7 +22,7 @@ primary_deficit   = np.zeros(T)
 d[0]              = d_0
 
 #Speed at which debt stabilizes
-v = 0.5
+v = 0.1
 
 for t in range(T):
     if t < T_stabilize:
@@ -38,18 +35,20 @@ for t in range(T):
         d[t+1] = (d[t]*(1+r) + primary_deficit[t]) / (1+g)
 
 ###Macro###
-#Initialize TFP, capital share, depreciation rate, interest rate, and capital stock
+#Initialize TFP, capital share, interest rate, and capital stock
 A      = 1.0
 alpha  = 0.33
-delta  = 0.06
 s      = r #Risk-adjusted return to capital
 k      = 3.5
 
-#Introduce budget deficit
-theta = 0.02
 
 #Introduce MPC
 MPC = [0.25, 0.5, 0.75]
+
+# Baseline steady-state values
+f    = A * k**alpha
+w    = (1-alpha) * f
+c_b  = w + 3.5*(s - g)
 
 c_results = {}
 a_results = {}
@@ -63,15 +62,10 @@ for i in MPC:
     #Initialize assets
     a[0] = 3.5
 
-    # Baseline steady-state values 
-    f    = A * k**alpha
-    w    = (1-alpha) * f
-    c_b  = w + a[0]*(s - g)
-
     for t in range(T):
 
         #Consumption and asset accumulation
-        c[t] = c_b + i*primary_deficit[t]
+        c[t] = c_b + i * primary_deficit[t]
 
         if t < T - 1:
             a[t+1] = (a[t]*(1+s) + w - c[t]) / (1+g)
@@ -102,6 +96,15 @@ df_full = df_constant.reset_index() \
                      .merge(df_variable, how = "right", on = "index") \
                      .sort_values(by=["MPC", "index"])
 
+df_full['assets_chg']         = df_full['assets'] - 3.5
+df_full['debt_chg']           = df_full['debt']
+df_full['foreign_capital']    = k - df_full['assets']
+df_full['income']             = w + df_full['assets'] * s
+df_full['savings_rate']       = (df_full['income'] - df_full['consumption']) / df_full['income']
+df_full['debt_to_earnings']   = df_full['debt'] / df_full['income']
+
+df_full.to_csv('df_full.csv', index=False)
+
 # print(df_full.head(50))
 # print(df_full.tail(50))
 
@@ -112,22 +115,73 @@ fig, ax = plt.subplots()
 colors = {0.25: '#053769', 0.5: '#ff5e1a', 0.75: "#a4c7f2"}
 
 for mpc, group in df_full.groupby('MPC'):
-    ax.plot(group['year'], group['assets'], label=f'Assets (MPC={mpc})', color = colors[mpc])
+    ax.plot(group['year'], group['assets_chg'], label=f'Assets (MPC={mpc})', color = colors[mpc])
 
 debt = df_full[df_full['MPC'] == MPC[0]]
-ax.plot(debt['year'], debt['debt'], label='Debt', color='black')
+ax.plot(debt['year'], debt['debt_chg'], label='Debt', color='black')
 
 ax.axvline(x = 2051, ymin = 0, ymax = 3.5, linestyle = 'dashed', color = 'black')
 
 ax.set_title('Assets and Debt, Small Open Economy')
 ax.set_xlabel('Year')
-ax.set_ylabel('Trillions of Dollars')
+ax.set_ylabel('Change (Trillions of Dollars)')
+ax.set_ylim(-3, 3)
 ax.legend()
+
+#Plot consumption by MPC
+fig, ax2 = plt.subplots()
+
+for mpc, group in df_full.groupby('MPC'):
+    ax2.plot(group['year'], group['consumption'], label=f'MPC={mpc}', color=colors[mpc])
+
+ax2.axvline(x=2051, ymin=0, ymax=1, linestyle='dashed', color='black')
+ax2.set_title('Consumption by MPC, Small Open Economy')
+ax2.set_xlabel('Year')
+ax2.set_ylabel('Consumption (Trillions of Dollars)')
+ax2.set_ylim(1.02, 1.1)
+ax2.legend()
+
+#Plot foreign-owned capital by MPC
+fig, ax3 = plt.subplots()
+
+for mpc, group in df_full.groupby('MPC'):
+    ax3.plot(group['year'], group['foreign_capital'], label=f'MPC={mpc}', color=colors[mpc])
+
+ax3.axvline(x=2051, ymin=0, ymax=1, linestyle='dashed', color='black')
+ax3.set_title('Foreign-Owned Capital by MPC, Small Open Economy')
+ax3.set_xlabel('Year')
+ax3.set_ylabel('Foreign-Owned Capital (Trillions of Dollars)')
+ax3.set_ylim(0, 2.5)
+ax3.legend()
+
+#Plot debt-to-earnings ratio by MPC
+fig, ax4 = plt.subplots()
+
+for mpc, group in df_full.groupby('MPC'):
+    ax4.plot(group['year'], group['debt_to_earnings'], label=f'MPC={mpc}', color=colors[mpc])
+
+ax4.axvline(x=2051, ymin=0, ymax=1, linestyle='dashed', color='black')
+ax4.set_title('Debt-to-Earnings Ratio by MPC, Small Open Economy')
+ax4.set_xlabel('Year')
+ax4.set_ylabel('Debt / Domestic Earnings')
+ax4.legend()
+
+#Plot savings rate by MPC
+fig, ax5 = plt.subplots()
+
+for mpc, group in df_full.groupby('MPC'):
+    ax5.plot(group['year'], group['savings_rate'], label=f'MPC={mpc}', color=colors[mpc])
+
+ax5.axvline(x=2051, ymin=0, ymax=1, linestyle='dashed', color='black')
+ax5.set_title('Savings Rate by MPC, Small Open Economy')
+ax5.set_xlabel('Year')
+ax5.set_ylabel('Savings Rate')
+ax5.legend()
 
 ###Different MPCs###
 #Introduce MPC
-MPC_accumulation  = 0.9
-MPC_stabilization = 0.1
+MPC_accumulation  = 1
+MPC_stabilization = 0
 
 #Allocate arrays
 c       = np.zeros(T) #consumption
@@ -135,11 +189,6 @@ a       = np.zeros(T) #assets
 
 #Initialize assets
 a[0] = 3.5
-
-# Baseline steady-state values 
-f    = A * k**alpha
-w    = (1-alpha) * f
-c_b  = w + a[0]*(s - g)
 
 for t in range(T):
 
@@ -165,6 +214,8 @@ df_corollary  = pd.DataFrame({
     "debt": d
 })
 
+df_corollary.to_csv('df_corollary.csv', index=False)
+
 # print(df_corollary.head(5))
 # print(df_corollary.tail(5))
 
@@ -172,15 +223,19 @@ df_corollary  = pd.DataFrame({
 #Plot output
 fig, ax1 = plt.subplots()
 
-ax1.plot(years, a, label = 'Assets', color = '#053769')
-ax1.plot(years, d, label = 'Debt', color = '#ff5e1a')
+a_chg = a - 3.5
+d_chg = d
+
+ax1.plot(years, a_chg, label = 'Assets', color = '#053769')
+ax1.plot(years, d_chg, label = 'Debt', color = '#ff5e1a')
 
 ax1.axvline(x = 2051, ymin = 0, ymax = 3.5, linestyle = 'dashed', color = 'black')
 
 plt.suptitle('        Assets and Debt, Small Open Economy', ha = 'center')
 ax1.set_title('Non-Constant MPC', fontsize = 11, ha = 'center')
 ax1.set_xlabel('Year')
-ax1.set_ylabel('Trillions of Dollars')
+ax1.set_ylabel('Change (Trillions of Dollars)')
+ax1.set_ylim(-6,6)
 ax1.legend()
 
 plt.tight_layout()
