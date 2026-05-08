@@ -39,7 +39,7 @@ for t in range(T):
 A      = 1.0
 alpha  = 0.33
 s      = r #Risk-adjusted return to capital
-k      = 3.5
+k      = 10
 
 
 #Introduce MPC
@@ -98,12 +98,11 @@ df_full = df_constant.reset_index() \
 
 df_full['assets_chg']         = df_full['assets'] - 3.5
 df_full['debt_chg']           = df_full['debt']
-df_full['foreign_capital']    = k - df_full['assets']
+df_full['foreign_capital']    = k - df_full['assets'] - 6.5
 df_full['income']             = w + df_full['assets'] * s
 df_full['savings_rate']       = (df_full['income'] - df_full['consumption']) / df_full['income']
-df_full['debt_to_earnings']   = df_full['debt'] / df_full['income']
 
-df_full.to_csv('df_full.csv', index=False)
+df_full.to_csv('df_open_full.csv', index=False)
 
 # print(df_full.head(50))
 # print(df_full.tail(50))
@@ -138,7 +137,7 @@ ax2.axvline(x=2051, ymin=0, ymax=1, linestyle='dashed', color='black')
 ax2.set_title('Consumption by MPC, Small Open Economy')
 ax2.set_xlabel('Year')
 ax2.set_ylabel('Consumption (Trillions of Dollars)')
-ax2.set_ylim(1.02, 1.1)
+ax2.set_ylim(1.4, 1.6)
 ax2.legend()
 
 #Plot foreign-owned capital by MPC
@@ -151,20 +150,9 @@ ax3.axvline(x=2051, ymin=0, ymax=1, linestyle='dashed', color='black')
 ax3.set_title('Foreign-Owned Capital by MPC, Small Open Economy')
 ax3.set_xlabel('Year')
 ax3.set_ylabel('Foreign-Owned Capital (Trillions of Dollars)')
-ax3.set_ylim(0, 2.5)
+ax3.set_ylim(0, 2)
 ax3.legend()
 
-#Plot debt-to-earnings ratio by MPC
-fig, ax4 = plt.subplots()
-
-for mpc, group in df_full.groupby('MPC'):
-    ax4.plot(group['year'], group['debt_to_earnings'], label=f'MPC={mpc}', color=colors[mpc])
-
-ax4.axvline(x=2051, ymin=0, ymax=1, linestyle='dashed', color='black')
-ax4.set_title('Debt-to-Earnings Ratio by MPC, Small Open Economy')
-ax4.set_xlabel('Year')
-ax4.set_ylabel('Debt / Domestic Earnings')
-ax4.legend()
 
 #Plot savings rate by MPC
 fig, ax5 = plt.subplots()
@@ -214,7 +202,7 @@ df_corollary  = pd.DataFrame({
     "debt": d
 })
 
-df_corollary.to_csv('df_corollary.csv', index=False)
+df_corollary.to_csv('df_open_corollary.csv', index=False)
 
 # print(df_corollary.head(5))
 # print(df_corollary.tail(5))
