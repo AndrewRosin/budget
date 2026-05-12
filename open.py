@@ -9,12 +9,28 @@ T_stabilize = 25
 
 years = np.arange(2026, 2026 + T, dtype=float)
 
-###Budget###
-#Set initial debt, intial deficit, interest rate, and growth rate of effective labor
+###Parameters###
+
+#Set initial debt, intial deficit, and growth rate of effective labor
 d_0           = 0
 pd_exogenous  = 0.06
-r             = 0.02
 g             = 0.01
+
+#Initialize TFP, capital share, capital stock, and depreciation rate
+A      = 1.0
+alpha  = 0.33
+k      = 10
+delta  = 0.06
+
+# Baseline steady-state values
+f    = A * k**alpha
+f_b  = A * alpha * k**(alpha-1)
+w    = (1-alpha) * f
+#r = f_b - delta #risk-adjusted return to capital
+r = 0.02
+c_b  = w + 3.5*(r - g)
+
+print(r)
 
 #Initialize arrays for debt and primary deficit
 d                 = np.zeros(T)
@@ -34,21 +50,9 @@ for t in range(T):
     if t < T - 1:
         d[t+1] = (d[t]*(1+r) + primary_deficit[t]) / (1+g)
 
-###Macro###
-#Initialize TFP, capital share, interest rate, and capital stock
-A      = 1.0
-alpha  = 0.33
-s      = r #Risk-adjusted return to capital
-k      = 10
-
 
 #Introduce MPC
 MPC = [0.25, 0.5, 0.75]
-
-# Baseline steady-state values
-f    = A * k**alpha
-w    = (1-alpha) * f
-c_b  = w + 3.5*(s - g)
 
 c_results = {}
 a_results = {}
@@ -68,7 +72,7 @@ for i in MPC:
         c[t] = c_b + i * primary_deficit[t]
 
         if t < T - 1:
-            a[t+1] = (a[t]*(1+s) + w - c[t]) / (1+g)
+            a[t+1] = (a[t]*(1+r) + w - c[t]) / (1+g)
 
     c_results[i] = c.copy()
     a_results[i] = a.copy()   
@@ -96,20 +100,20 @@ df_full = df_constant.reset_index() \
                      .merge(df_variable, how = "right", on = "index") \
                      .sort_values(by=["MPC", "index"])
 
-df_full['assets_chg']         = df_full['assets'] - 3.5
-df_full['debt_chg']           = df_full['debt']
-df_full['foreign_capital']    = k - df_full['assets'] - 6.5
-df_full['income']             = w + df_full['assets'] * s
-df_full['savings_rate']       = (df_full['income'] - df_full['consumption']) / df_full['income']
+df_full['assets_chg']             = df_full['assets'] - 3.5
+df_full['debt_chg']               = df_full['debt']
+df_full['foreign_capital_chg']    = k - df_full['assets'] - 6.5
+df_full['income']                 = w + df_full['assets'] * r
+df_full['savings_rate']           = (df_full['income'] - df_full['consumption']) / df_full['income']
 
-df_full.to_csv('df_open_full.csv', index=False)
+df_full.to_csv('df_open.csv', index=False)
 
 # print(df_full.head(50))
 # print(df_full.tail(50))
 
 
 #Plot output
-fig, ax = plt.subplots()
+fig1, ax = plt.subplots()
 
 colors = {0.25: '#053769', 0.5: '#ff5e1a', 0.75: "#a4c7f2"}
 
@@ -126,45 +130,50 @@ ax.set_xlabel('Year')
 ax.set_ylabel('Change (Trillions of Dollars)')
 ax.set_ylim(-3, 3)
 ax.legend()
+fig1.savefig('graphs/assets_and_debt.png', bbox_inches='tight')
 
 #Plot consumption by MPC
-fig, ax2 = plt.subplots()
+fig2, ax2 = plt.subplots()
 
 for mpc, group in df_full.groupby('MPC'):
     ax2.plot(group['year'], group['consumption'], label=f'MPC={mpc}', color=colors[mpc])
 
 ax2.axvline(x=2051, ymin=0, ymax=1, linestyle='dashed', color='black')
-ax2.set_title('Consumption by MPC, Small Open Economy')
+ax2.set_title('Consumption, Small Open Economy')
 ax2.set_xlabel('Year')
 ax2.set_ylabel('Consumption (Trillions of Dollars)')
-ax2.set_ylim(1.4, 1.6)
+ax2.set_xlim(left=2026)
+ax2.set_ylim(1.425, 1.525)
 ax2.legend()
+fig2.savefig('graphs/consumption.png', bbox_inches='tight')
 
 #Plot foreign-owned capital by MPC
-fig, ax3 = plt.subplots()
+fig3, ax3 = plt.subplots()
 
 for mpc, group in df_full.groupby('MPC'):
-    ax3.plot(group['year'], group['foreign_capital'], label=f'MPC={mpc}', color=colors[mpc])
+    ax3.plot(group['year'], group['foreign_capital_chg'], label=f'MPC={mpc}', color=colors[mpc])
 
 ax3.axvline(x=2051, ymin=0, ymax=1, linestyle='dashed', color='black')
-ax3.set_title('Foreign-Owned Capital by MPC, Small Open Economy')
+ax3.set_title('Foreign-Owned Capital, Small Open Economy')
 ax3.set_xlabel('Year')
 ax3.set_ylabel('Foreign-Owned Capital (Trillions of Dollars)')
+ax3.set_xlim(left=2026)
 ax3.set_ylim(0, 2)
 ax3.legend()
-
+fig3.savefig('graphs/foreign_owned_capital.png', bbox_inches='tight')
 
 #Plot savings rate by MPC
-fig, ax5 = plt.subplots()
+fig4, ax5 = plt.subplots()
 
 for mpc, group in df_full.groupby('MPC'):
     ax5.plot(group['year'], group['savings_rate'], label=f'MPC={mpc}', color=colors[mpc])
 
 ax5.axvline(x=2051, ymin=0, ymax=1, linestyle='dashed', color='black')
-ax5.set_title('Savings Rate by MPC, Small Open Economy')
+ax5.set_title('Savings Rate, Small Open Economy')
 ax5.set_xlabel('Year')
 ax5.set_ylabel('Savings Rate')
 ax5.legend()
+fig4.savefig('graphs/savings_rate.png', bbox_inches='tight')
 
 ###Different MPCs###
 #Introduce MPC
@@ -187,7 +196,7 @@ for t in range(T):
         c[t] = c_b + MPC_stabilization*primary_deficit[t]
 
     if t < T - 1:
-        a[t+1] = (a[t]*(1+s) + w - c[t]) / (1+g)
+        a[t+1] = (a[t]*(1+r) + w - c[t]) / (1+g)
 
 
 
@@ -209,7 +218,7 @@ df_corollary.to_csv('df_open_corollary.csv', index=False)
 
 
 #Plot output
-fig, ax1 = plt.subplots()
+fig5, ax1 = plt.subplots()
 
 a_chg = a - 3.5
 d_chg = d
@@ -227,4 +236,5 @@ ax1.set_ylim(-6,6)
 ax1.legend()
 
 plt.tight_layout()
+fig5.savefig('graphs/assets_and_debt_nonconstant_mpc.png', bbox_inches='tight')
 plt.show()
